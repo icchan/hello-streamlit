@@ -3,6 +3,9 @@ import pandas as pd
 import numpy as np
 import os
 from dotenv import load_dotenv
+import plotly.graph_objects as go
+from plotly.subplots import make_subplots
+from datetime import datetime, timedelta
 
 # Load environment variables
 load_dotenv()
@@ -26,6 +29,120 @@ if page == "Hello":
     
     # Optional: Display additional info about the environment variable
     st.caption("💡 This message is loaded from the .env file")
+    
+    # Add combo chart section
+    st.markdown("---")
+    st.header("📊 Financial Performance Dashboard")
+    st.write("Past 12 months overview with Net Worth, USD/AUD Exchange Rate, and MSFT Stock Price")
+    
+    # Generate sample data for the past 12 months
+    end_date = datetime.now()
+    start_date = end_date - timedelta(days=365)
+    dates = pd.date_range(start=start_date, end=end_date, freq='M')
+    months = [date.strftime('%b %Y') for date in dates]
+    
+    # Set random seed for consistent data
+    np.random.seed(42)
+    
+    # Generate sample data
+    base_net_worth = 500000
+    net_worth = [base_net_worth + np.random.randint(-50000, 100000) + i * 5000 for i in range(len(months))]
+    
+    base_usd_aud = 1.45
+    usd_aud_rate = [base_usd_aud + np.random.uniform(-0.15, 0.15) for _ in range(len(months))]
+    
+    base_msft = 350
+    msft_price = [base_msft + np.random.uniform(-50, 80) + i * 2 for i in range(len(months))]
+    
+    # Create the combo chart using Plotly
+    fig = make_subplots(specs=[[{"secondary_y": True}]])
+    
+    # Add bar chart for Net Worth
+    fig.add_trace(
+        go.Bar(
+            x=months,
+            y=net_worth,
+            name="Net Worth ($)",
+            marker_color='lightblue',
+            opacity=0.7
+        ),
+        secondary_y=False
+    )
+    
+    # Add line chart for USD/AUD Exchange Rate
+    fig.add_trace(
+        go.Scatter(
+            x=months,
+            y=usd_aud_rate,
+            mode='lines+markers',
+            name="USD/AUD Rate",
+            line=dict(color='red', width=3),
+            marker=dict(size=6)
+        ),
+        secondary_y=True
+    )
+    
+    # Add line chart for MSFT Stock Price
+    fig.add_trace(
+        go.Scatter(
+            x=months,
+            y=msft_price,
+            mode='lines+markers',
+            name="MSFT Stock Price ($)",
+            line=dict(color='green', width=3),
+            marker=dict(size=6)
+        ),
+        secondary_y=True
+    )
+    
+    # Update x-axis
+    fig.update_xaxes(title_text="Month")
+    
+    # Update y-axes
+    fig.update_yaxes(title_text="Net Worth ($)", secondary_y=False)
+    fig.update_yaxes(title_text="Exchange Rate / Stock Price", secondary_y=True)
+    
+    # Update layout
+    fig.update_layout(
+        title="Financial Performance - Past 12 Months",
+        width=None,
+        height=500,
+        hovermode='x unified',
+        legend=dict(
+            orientation="h",
+            yanchor="bottom",
+            y=1.02,
+            xanchor="right",
+            x=1
+        )
+    )
+    
+    # Display the chart
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Add some metrics below the chart
+    col1, col2, col3 = st.columns(3)
+    
+    with col1:
+        st.metric(
+            label="Current Net Worth",
+            value=f"${net_worth[-1]:,.0f}",
+            delta=f"${net_worth[-1] - net_worth[0]:,.0f}"
+        )
+    
+    with col2:
+        st.metric(
+            label="Current USD/AUD Rate",
+            value=f"{usd_aud_rate[-1]:.3f}",
+            delta=f"{usd_aud_rate[-1] - usd_aud_rate[0]:+.3f}"
+        )
+    
+    with col3:
+        st.metric(
+            label="Current MSFT Price",
+            value=f"${msft_price[-1]:.2f}",
+            delta=f"${msft_price[-1] - msft_price[0]:+.2f}"
+        )
 
 # Page 2: Goodbye  
 elif page == "Goodbye":
