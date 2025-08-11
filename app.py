@@ -6,6 +6,8 @@ from dotenv import load_dotenv
 import plotly.graph_objects as go
 from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
+import pytz
+import time
 
 # Load environment variables
 load_dotenv()
@@ -38,7 +40,7 @@ if page == "Hello":
     # Generate sample data for the past 12 months
     end_date = datetime.now()
     start_date = end_date - timedelta(days=365)
-    dates = pd.date_range(start=start_date, end=end_date, freq='M')
+    dates = pd.date_range(start=start_date, end=end_date, freq='ME')
     months = [date.strftime('%b %Y') for date in dates]
     
     # Set random seed for consistent data
@@ -146,7 +148,122 @@ if page == "Hello":
 
 # Page 2: Goodbye  
 elif page == "Goodbye":
-    st.title("Goodbye")
+    st.title("🌍 World Clock")
+    st.write("Current time in different timezones around the world")
+    
+    # Read timezones from environment variable
+    timezones_str = os.getenv('TIMEZONES', 'Australia/Sydney,Asia/Tokyo,Europe/London,America/New_York,America/Los_Angeles')
+    timezone_list = [tz.strip() for tz in timezones_str.split(',')]
+    
+    # Create a mapping of timezone codes to friendly names
+    timezone_names = {
+        'Australia/Sydney': 'Sydney',
+        'Asia/Tokyo': 'Osaka', 
+        'Europe/London': 'London',
+        'America/New_York': 'New York',
+        'America/Los_Angeles': 'Seattle'  # Using Los Angeles timezone for Seattle
+    }
+    
+    # Create columns for the clocks
+    cols = st.columns(len(timezone_list))
+    
+    # Auto-refresh every second
+    placeholder = st.empty()
+    
+    with placeholder.container():
+        # Create a row of clocks
+        clock_cols = st.columns(len(timezone_list))
+        
+        for i, tz_code in enumerate(timezone_list):
+            with clock_cols[i]:
+                try:
+                    # Get timezone
+                    tz = pytz.timezone(tz_code)
+                    current_time = datetime.now(tz)
+                    
+                    # Get friendly name
+                    city_name = timezone_names.get(tz_code, tz_code.split('/')[-1])
+                    
+                    # Create a nice clock display
+                    st.markdown(f"""
+                    <div style="
+                        text-align: center; 
+                        padding: 20px; 
+                        border: 2px solid #ddd; 
+                        border-radius: 15px; 
+                        margin: 10px;
+                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        color: white;
+                        box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+                    ">
+                        <h3 style="margin: 0; color: white;">{city_name}</h3>
+                        <div style="font-size: 2.5em; font-weight: bold; margin: 10px 0;">
+                            {current_time.strftime('%H:%M:%S')}
+                        </div>
+                        <div style="font-size: 1.2em; opacity: 0.9;">
+                            {current_time.strftime('%A')}
+                        </div>
+                        <div style="font-size: 1em; opacity: 0.8;">
+                            {current_time.strftime('%B %d, %Y')}
+                        </div>
+                        <div style="font-size: 0.9em; opacity: 0.7; margin-top: 5px;">
+                            UTC{current_time.strftime('%z')[:3]}:{current_time.strftime('%z')[3:]}
+                        </div>
+                    </div>
+                    """, unsafe_allow_html=True)
+                    
+                except Exception as e:
+                    st.error(f"Error loading timezone {tz_code}: {str(e)}")
+    
+    # Add refresh button and auto-refresh option
+    st.markdown("---")
+    col1, col2, col3 = st.columns([1, 1, 1])
+    
+    with col1:
+        if st.button("🔄 Refresh Now"):
+            st.rerun()
+    
+    with col2:
+        auto_refresh = st.checkbox("Auto-refresh every 30 seconds")
+    
+    with col3:
+        st.markdown("*Times update automatically*")
+    
+    # Auto-refresh functionality
+    if auto_refresh:
+        time.sleep(30)
+        st.rerun()
+    
+    # Display timezone information
+    st.markdown("---")
+    st.subheader("📍 Timezone Information")
+    
+    timezone_info = []
+    for tz_code in timezone_list:
+        try:
+            tz = pytz.timezone(tz_code)
+            current_time = datetime.now(tz)
+            city_name = timezone_names.get(tz_code, tz_code.split('/')[-1])
+            
+            timezone_info.append({
+                'City': city_name,
+                'Timezone': tz_code,
+                'Current Time': current_time.strftime('%H:%M:%S'),
+                'Date': current_time.strftime('%Y-%m-%d'),
+                'UTC Offset': current_time.strftime('%z')
+            })
+        except Exception as e:
+            timezone_info.append({
+                'City': tz_code,
+                'Timezone': tz_code,
+                'Current Time': 'Error',
+                'Date': 'Error',
+                'UTC Offset': 'Error'
+            })
+    
+    # Display as a table
+    df_timezones = pd.DataFrame(timezone_info)
+    st.dataframe(df_timezones, use_container_width=True)
 
 # Page 3: Original Data Dashboard
 elif page == "Data Dashboard":
