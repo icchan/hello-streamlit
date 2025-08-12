@@ -218,8 +218,50 @@ if page == "Finance":
     # Display the forex chart
     st.plotly_chart(fig_forex, use_container_width=True)
     
+    # Create MSFT price in AUD chart
+    # Calculate MSFT price in AUD by multiplying USD price by USD/AUD rate
+    msft_price_aud = [usd_price * exchange_rate for usd_price, exchange_rate in zip(msft_price, usd_aud_rate)]
+    
+    fig_msft_aud = go.Figure()
+    
+    # Add MSFT AUD line chart
+    fig_msft_aud.add_trace(
+        go.Scatter(
+            x=months,
+            y=msft_price_aud,
+            mode='lines+markers',
+            name="MSFT Price (AUD)",
+            line=dict(color='purple', width=3),
+            marker=dict(size=6),
+            fill='tonexty',
+            fillcolor='rgba(128,0,128,0.1)'
+        )
+    )
+    
+    # Calculate y-axis range for MSFT AUD chart
+    min_price_aud = min(msft_price_aud)
+    max_price_aud = max(msft_price_aud)
+    price_range_padding = (max_price_aud - min_price_aud) * 0.1  # Add 10% padding
+    price_y_min = min_price_aud - price_range_padding
+    price_y_max = max_price_aud + price_range_padding
+    
+    # Update layout for MSFT AUD chart
+    fig_msft_aud.update_layout(
+        title="MSFT Stock Price in AUD - Past 12 Months",
+        xaxis_title="Month",
+        yaxis_title="MSFT Price (AUD)",
+        yaxis=dict(range=[price_y_min, price_y_max]),  # Set custom y-axis range
+        width=None,
+        height=300,
+        hovermode='x',
+        showlegend=False
+    )
+    
+    # Display the MSFT AUD chart
+    st.plotly_chart(fig_msft_aud, use_container_width=True)
+    
     # Add some metrics below the chart
-    col1, col2, col3 = st.columns(3)
+    col1, col2, col3, col4 = st.columns(4)
     
     with col1:
         st.metric(
@@ -240,6 +282,13 @@ if page == "Finance":
             label="Current MSFT Price",
             value=f"${msft_price[-1]:.2f}",
             delta=f"${msft_price[-1] - msft_price[0]:+.2f}"
+        )
+    
+    with col4:
+        st.metric(
+            label="Current MSFT Price (AUD)",
+            value=f"₱{msft_price_aud[-1]:,.2f}",
+            delta=f"₱{msft_price_aud[-1] - msft_price_aud[0]:+.2f}"
         )
 
 # Page 2: Goodbye  
