@@ -8,9 +8,60 @@ from plotly.subplots import make_subplots
 from datetime import datetime, timedelta
 import pytz
 import time
+import yfinance as yf
 
 # Load environment variables
 load_dotenv()
+
+# Function to fetch stock price data
+def get_stock_prices(ticker, months_count, period="1y", fallback_data=None):
+    """
+    Fetch stock prices for a given ticker symbol with fallback support
+    
+    Args:
+        ticker (str): Stock ticker symbol (e.g., 'MSFT', 'AAPL') or forex pair (e.g., 'USDAUD=X')
+        months_count (int): Number of months of data needed
+        period (str): Period for data fetch (default: '1y')
+        fallback_data (dict): Optional fallback data with 'base_value' and 'variation_range'
+    
+    Returns:
+        tuple: (data_list, is_real_data, status_message)
+    """
+    try:
+        # Download stock data
+        stock = yf.Ticker(ticker)
+        hist = stock.history(period=period, interval="1mo")
+        
+        if not hist.empty:
+            # Get monthly closing prices
+            prices_real = hist['Close'].values
+            # Ensure we have the right number of data points
+            if len(prices_real) >= months_count:
+                data = list(prices_real[-months_count:])
+                return data, True, f"✅ Real {ticker} data loaded successfully!"
+            else:
+                # If we don't have enough data, pad with the last known price
+                data = list(prices_real) + [prices_real[-1]] * (months_count - len(prices_real))
+                return data, True, f"✅ Real {ticker} data loaded successfully! (padded)"
+        else:
+            raise Exception("No data received from API")
+            
+    except Exception as e:
+        # Generate fallback data if real data fetch fails
+        if fallback_data:
+            np.random.seed(42)  # For consistent fallback data
+            base_value = fallback_data['base_value']
+            variation_range = fallback_data['variation_range']
+            
+            if ticker.endswith('=X'):  # Forex data
+                data = [base_value + np.random.uniform(-variation_range, variation_range) for _ in range(months_count)]
+            else:  # Stock data
+                data = [base_value + np.random.uniform(-variation_range, variation_range) + i * 2 for i in range(months_count)]
+            
+            return data, False, f"⚠️ Could not fetch real {ticker} data ({str(e)}). Using simulated data."
+        else:
+            # No fallback provided, raise exception
+            raise Exception(f"Failed to fetch {ticker} data: {str(e)}")
 
 # Set page configuration
 st.set_page_config(
@@ -21,10 +72,10 @@ st.set_page_config(
 
 # Sidebar navigation
 st.sidebar.title("🧭 Navigation")
-page = st.sidebar.selectbox("Choose a page:", ["Hello", "Goodbye", "Data Dashboard"])
+page = st.sidebar.radio("Choose a page:", ["Finance", "Daily", "Data Dashboard"])
 
-# Page 1: Hello
-if page == "Hello":
+# Page 1: Finance
+if page == "Finance":
     # Get welcome message from environment variable
     welcome_message = os.getenv('WELCOME_MESSAGE', 'Hello')  # Default to 'Hello' if not found
     st.title(welcome_message)
@@ -46,17 +97,36 @@ if page == "Hello":
     # Set random seed for consistent data
     np.random.seed(42)
     
-    # Generate sample data
+    # Generate sample data for Net Worth and USD/AUD
     base_net_worth = 500000
     net_worth = [base_net_worth + np.random.randint(-50000, 100000) + i * 5000 for i in range(len(months))]
     
-    base_usd_aud = 1.45
-    usd_aud_rate = [base_usd_aud + np.random.uniform(-0.15, 0.15) for _ in range(len(months))]
+    # Fetch USD/AUD exchange rate using yfinance
+    with st.spinner('Fetching USD/AUD exchange rate...'):
+        usd_aud_rate, is_real_usd_aud, usd_aud_message = get_stock_prices(
+            "USDAUD=X", 
+            len(months),
+            fallback_data={'base_value': 1.45, 'variation_range': 0.15}
+        )
+        if is_real_usd_aud:
+            st.success(usd_aud_message)
+        else:
+            st.warning(usd_aud_message)
     
-    base_msft = 350
-    msft_price = [base_msft + np.random.uniform(-50, 80) + i * 2 for i in range(len(months))]
+    # Fetch real MSFT stock prices using yfinance
+    with st.spinner('Fetching real MSFT stock data...'):
+        msft_price, is_real_msft, msft_message = get_stock_prices(
+            "MSFT", 
+            len(months),
+            fallback_data={'base_value': 350, 'variation_range': 50}
+        )
+        if is_real_msft:
+            st.success(msft_message)
+        else:
+            st.warning(msft_message)
     
-    # Create the combo chart using Plotly
+
+    # Create the combo chart using Plotly (Net Worth + MSFT Stock)
     fig = make_subplots(specs=[[{"secondary_y": True}]])
     
     # Add bar chart for Net Worth
@@ -69,19 +139,6 @@ if page == "Hello":
             opacity=0.7
         ),
         secondary_y=False
-    )
-    
-    # Add line chart for USD/AUD Exchange Rate
-    fig.add_trace(
-        go.Scatter(
-            x=months,
-            y=usd_aud_rate,
-            mode='lines+markers',
-            name="USD/AUD Rate",
-            line=dict(color='red', width=3),
-            marker=dict(size=6)
-        ),
-        secondary_y=True
     )
     
     # Add line chart for MSFT Stock Price
@@ -102,13 +159,13 @@ if page == "Hello":
     
     # Update y-axes
     fig.update_yaxes(title_text="Net Worth ($)", secondary_y=False)
-    fig.update_yaxes(title_text="Exchange Rate / Stock Price", secondary_y=True)
+    fig.update_yaxes(title_text="MSFT Stock Price ($)", secondary_y=True)
     
     # Update layout
     fig.update_layout(
-        title="Financial Performance - Past 12 Months",
+        title="Financial Performance - Net Worth & MSFT Stock",
         width=None,
-        height=500,
+        height=400,
         hovermode='x unified',
         legend=dict(
             orientation="h",
@@ -119,8 +176,47 @@ if page == "Hello":
         )
     )
     
-    # Display the chart
+    # Display the first chart
     st.plotly_chart(fig, use_container_width=True)
+    
+    # Create separate USD/AUD exchange rate chart
+    fig_forex = go.Figure()
+    
+    # Add USD/AUD line chart
+    fig_forex.add_trace(
+        go.Scatter(
+            x=months,
+            y=usd_aud_rate,
+            mode='lines+markers',
+            name="USD/AUD Exchange Rate",
+            line=dict(color='red', width=3),
+            marker=dict(size=6),
+            fill='tonexty',
+            fillcolor='rgba(255,0,0,0.1)'
+        )
+    )
+    
+    # Calculate y-axis range for better zoom
+    min_rate = min(usd_aud_rate)
+    max_rate = max(usd_aud_rate)
+    range_padding = (max_rate - min_rate) * 0.1  # Add 10% padding
+    y_min = min_rate - range_padding
+    y_max = max_rate + range_padding
+    
+    # Update layout for forex chart
+    fig_forex.update_layout(
+        title="USD/AUD Exchange Rate - Past 12 Months",
+        xaxis_title="Month",
+        yaxis_title="Exchange Rate (USD/AUD)",
+        yaxis=dict(range=[y_min, y_max]),  # Set custom y-axis range
+        width=None,
+        height=300,
+        hovermode='x',
+        showlegend=False
+    )
+    
+    # Display the forex chart
+    st.plotly_chart(fig_forex, use_container_width=True)
     
     # Add some metrics below the chart
     col1, col2, col3 = st.columns(3)
@@ -147,7 +243,7 @@ if page == "Hello":
         )
 
 # Page 2: Goodbye  
-elif page == "Goodbye":
+elif page == "Daily":
     st.title("🌍 World Clock")
     st.write("Current time in different timezones around the world")
     
@@ -184,6 +280,20 @@ elif page == "Goodbye":
                     # Get friendly name
                     city_name = timezone_names.get(tz_code, tz_code.split('/')[-1])
                     
+                    # Determine if it's day or night (6 AM to 6 PM is day time)
+                    hour = current_time.hour
+                    is_daytime = 6 <= hour < 18
+                    
+                    # Set colors based on time of day
+                    if is_daytime:
+                        # Daytime: Orange/Yellow gradient
+                        background_gradient = "background: linear-gradient(135deg, #ff9a56 0%, #ffad56 50%, #ffc947 100%);"
+                        time_icon = "☀️"
+                    else:
+                        # Nighttime: Blue gradient
+                        background_gradient = "background: linear-gradient(135deg, #667eea 0%, #764ba2 50%, #2c3e50 100%);"
+                        time_icon = "🌙"
+                    
                     # Create a nice clock display
                     st.markdown(f"""
                     <div style="
@@ -192,13 +302,13 @@ elif page == "Goodbye":
                         border: 2px solid #ddd; 
                         border-radius: 15px; 
                         margin: 10px;
-                        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+                        {background_gradient}
                         color: white;
                         box-shadow: 0 4px 8px rgba(0,0,0,0.1);
                     ">
-                        <h3 style="margin: 0; color: white;">{city_name}</h3>
+                        <h3 style="margin: 0; color: white;">{time_icon} {city_name}</h3>
                         <div style="font-size: 2.5em; font-weight: bold; margin: 10px 0;">
-                            {current_time.strftime('%H:%M:%S')}
+                            {current_time.strftime('%H:%M')}
                         </div>
                         <div style="font-size: 1.2em; opacity: 0.9;">
                             {current_time.strftime('%A')}
@@ -248,7 +358,7 @@ elif page == "Goodbye":
             timezone_info.append({
                 'City': city_name,
                 'Timezone': tz_code,
-                'Current Time': current_time.strftime('%H:%M:%S'),
+                'Current Time': current_time.strftime('%H:%M'),
                 'Date': current_time.strftime('%Y-%m-%d'),
                 'UTC Offset': current_time.strftime('%z')
             })
