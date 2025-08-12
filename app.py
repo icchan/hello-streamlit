@@ -88,18 +88,47 @@ if page == "Finance":
     st.header("📊 Financial Performance Dashboard")
     st.write("Past 12 months overview with Net Worth, USD/AUD Exchange Rate, and MSFT Stock Price")
     
-    # Generate sample data for the past 12 months
-    end_date = datetime.now()
-    start_date = end_date - timedelta(days=365)
-    dates = pd.date_range(start=start_date, end=end_date, freq='ME')
-    months = [date.strftime('%b %Y') for date in dates]
-    
     # Set random seed for consistent data
     np.random.seed(42)
     
-    # Generate sample data for Net Worth and USD/AUD
-    base_net_worth = 500000
-    net_worth = [base_net_worth + np.random.randint(-50000, 100000) + i * 5000 for i in range(len(months))]
+    # Read net worth data from CSV file
+    try:
+        # Try to read net worth data from CSV
+        net_worth_df = pd.read_csv('net_worth_data.csv')
+        net_worth_df['Date'] = pd.to_datetime(net_worth_df['Date'])
+        
+        # Sort by date
+        net_worth_df = net_worth_df.sort_values('Date')
+        
+        # Create month labels from the CSV dates instead of generated dates
+        months = [date.strftime('%b %Y') for date in net_worth_df['Date']]
+        net_worth = net_worth_df['Net_Worth'].tolist()
+        
+        # Ensure we only show the last 12 months if we have more data
+        if len(net_worth) > 12:
+            months = months[-12:]
+            net_worth = net_worth[-12:]
+        
+        st.success("✅ Net worth data loaded from CSV file!")
+        
+    except FileNotFoundError:
+        st.warning("⚠️ net_worth_data.csv not found. Using simulated data.")
+        # Fallback to generated data with original date logic
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+        dates = pd.date_range(start=start_date, end=end_date, freq='ME')
+        months = [date.strftime('%b %Y') for date in dates]
+        base_net_worth = 500000
+        net_worth = [base_net_worth + np.random.randint(-50000, 100000) + i * 5000 for i in range(len(months))]
+    except Exception as e:
+        st.warning(f"⚠️ Error reading CSV file ({str(e)}). Using simulated data.")
+        # Fallback to generated data with original date logic
+        end_date = datetime.now()
+        start_date = end_date - timedelta(days=365)
+        dates = pd.date_range(start=start_date, end=end_date, freq='ME')
+        months = [date.strftime('%b %Y') for date in dates]
+        base_net_worth = 500000
+        net_worth = [base_net_worth + np.random.randint(-50000, 100000) + i * 5000 for i in range(len(months))]
     
     # Fetch USD/AUD exchange rate using yfinance
     with st.spinner('Fetching USD/AUD exchange rate...'):
