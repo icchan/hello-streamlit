@@ -1,6 +1,6 @@
-# Hello Streamlit - Sample Table Data Application
+# Hello Streamlit
 
-This is a simple Streamlit application that displays various types of sample table data.
+This is a simple Streamlit application that useful information that I use regularly
 
 ## Features
 
